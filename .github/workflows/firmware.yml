@@ -1,0 +1,124 @@
+name: Firmware
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build:
+    name: Build greenpico firmware
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      firmware_name: ${{ steps.package.outputs.firmware_name }}
+    env:
+      PLATFORMIO_CORE_DIR: ${{ github.workspace }}/.platformio-core
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install platformio==6.2.0
+          npm --prefix web ci
+
+      - name: Run native tests and build release firmware
+        run: make test build
+
+      - name: Package versioned firmware
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          firmware_version="$(sed -n 's/.*kFirmwareVersion\[\].*= "\([^"]*\)";.*/\1/p' include/version.hpp)"
+          if [[ -z "${firmware_version}" ]]; then
+            echo "Unable to read kFirmwareVersion from include/version.hpp" >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+            if [[ "${GITHUB_REF_NAME}" == "${tag_version}" || "${tag_version}" != "${firmware_version}" ]]; then
+              echo "Release tag ${GITHUB_REF_NAME} must be v${firmware_version}" >&2
+              exit 1
+            fi
+          fi
+
+          mkdir -p dist
+          firmware_name="greenpico-v${firmware_version}.uf2"
+          cp .pio/build/pico_w/firmware.uf2 "dist/${firmware_name}"
+          (
+            cd dist
+            sha256sum "${firmware_name}" > "${firmware_name}.sha256"
+          )
+          echo "version=${firmware_version}" >> "${GITHUB_OUTPUT}"
+          echo "firmware_name=${firmware_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: greenpico-firmware-v${{ steps.package.outputs.version }}
+          path: |
+            dist/${{ steps.package.outputs.firmware_name }}
+            dist/${{ steps.package.outputs.firmware_name }}.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download versioned firmware
+        uses: actions/download-artifact@v7
+        with:
+          name: greenpico-firmware-v${{ needs.build.outputs.version }}
+          path: dist
+
+      - name: Publish GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --title "greenpico ${GITHUB_REF_NAME}"
+          fi

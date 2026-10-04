@@ -1,0 +1,649 @@
+openapi: 3.1.0
+info:
+  title: greenpico API
+  version: 0.14.0
+  description: |
+    Local-network API for the Pico Clock Green firmware. Configuration changes
+    are persisted atomically and applied after an automatic restart. The API is
+    currently unauthenticated and must be used only on a trusted network.
+servers:
+  - url: http://greenpico.internal/api/v1
+    description: Default configurable hostname and local DNS domain
+  - url: http://192.168.4.1/api/v1
+    description: Provisioning access point
+tags:
+  - name: Device
+  - name: Configuration
+  - name: Time
+  - name: Display
+  - name: Network
+paths:
+  /:
+    get:
+      operationId: getApiIndex
+      tags: [Device]
+      summary: Discover API resources and embedded documentation
+      responses:
+        '200':
+          description: API discovery document
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiIndex'
+  /status:
+    get:
+      operationId: getStatus
+      tags: [Device]
+      summary: Read device and network status
+      responses:
+        '200':
+          description: Current status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /config:
+    get:
+      operationId: getConfig
+      tags: [Configuration]
+      summary: Read non-secret configuration
+      description: The saved Wi-Fi password is never returned.
+      responses:
+        '200':
+          description: Current configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Config'
+    put:
+      operationId: replaceConfig
+      tags: [Configuration]
+      summary: Replace configuration
+      description: |
+        Omit `password` to preserve the saved value. Set `clearPassword` to true
+        for an open network. A successful write restarts the clock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigWrite'
+      responses:
+        '202':
+          description: Configuration accepted for persistence and restart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedRestart'
+        '400':
+          $ref: '#/components/responses/Problem'
+  /time/sync:
+    post:
+      operationId: synchronizeTime
+      tags: [Time]
+      summary: Request an immediate NTP synchronization
+      responses:
+        '202':
+          description: Synchronization request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /time:
+    get:
+      operationId: getTime
+      tags: [Time]
+      summary: Read the current local RTC date and time
+      responses:
+        '200':
+          description: Current clock time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClockTime'
+  /display:
+    get:
+      operationId: getDisplay
+      tags: [Display]
+      summary: Read the current display and sensor state
+      responses:
+        '200':
+          description: Current display state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisplayStatus'
+  /display/actions:
+    post:
+      operationId: controlDisplay
+      tags: [Display]
+      summary: Perform a display or information-page action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisplayActionRequest'
+      responses:
+        '202':
+          description: Display action accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '400':
+          $ref: '#/components/responses/Problem'
+  /power-saving/test:
+    post:
+      operationId: testPowerSaving
+      tags: [Display]
+      summary: Test display-off power saving and wake behavior
+      description: |
+        Blanks the display and selects CYW43 aggressive Wi-Fi power management.
+        A physical front-panel button ends every test immediately. Timed tests
+        also end automatically; zero continues indefinitely until a button is
+        pressed. The Wi-Fi association and HTTP API remain available.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PowerSaveTestRequest'
+      responses:
+        '202':
+          description: Power-saving test accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '400':
+          $ref: '#/components/responses/Problem'
+  /wifi/networks:
+    get:
+      operationId: getWifiNetworks
+      tags: [Network]
+      summary: Read Wi-Fi scan state and discovered access points
+      responses:
+        '200':
+          description: Current scan snapshot, ordered by signal strength
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WifiScan'
+  /wifi/scan:
+    post:
+      operationId: scanWifiNetworks
+      tags: [Network]
+      summary: Start an asynchronous Wi-Fi access-point scan
+      responses:
+        '202':
+          description: Scan request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+  /network/provisioning:
+    post:
+      operationId: startProvisioning
+      tags: [Network]
+      summary: Replace station mode with the temporary greenpico setup AP
+      description: The current HTTP connection may close when the Wi-Fi interface changes mode.
+      responses:
+        '202':
+          description: Provisioning transition accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+  /device/factory-reset:
+    post:
+      operationId: factoryReset
+      tags: [Device]
+      summary: Erase saved configuration and restart into provisioning mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactoryResetRequest'
+      responses:
+        '202':
+          description: Factory reset accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedRestart'
+        '400':
+          $ref: '#/components/responses/Problem'
+components:
+  responses:
+    Problem:
+      description: Request failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    ApiIndex:
+      type: object
+      additionalProperties: false
+      required: [title, version, documentation, resources]
+      properties:
+        title:
+          type: string
+          const: greenpico API
+        version:
+          type: string
+          const: v1
+        documentation:
+          type: string
+          const: /docs
+        resources:
+          type: object
+          additionalProperties:
+            type: string
+    Timezone:
+      type: string
+      description: Supported canonical IANA timezone identifier.
+      enum:
+        - UTC
+        - America/Los_Angeles
+        - America/Denver
+        - America/Chicago
+        - America/New_York
+        - America/Phoenix
+        - Europe/London
+        - Europe/Berlin
+        - Asia/Tokyo
+    LocalTime:
+      type: string
+      pattern: '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'
+      examples: ['22:00']
+    DisplaySchedule:
+      type: object
+      additionalProperties: false
+      required: [enabled, 'off', 'on']
+      properties:
+        enabled:
+          type: boolean
+        'off':
+          $ref: '#/components/schemas/LocalTime'
+        'on':
+          $ref: '#/components/schemas/LocalTime'
+    Config:
+      type: object
+      additionalProperties: false
+      required: [ssid, passwordConfigured, hostname, domainName, ntpServer, timezone, displaySchedule,
+        automaticBrightness, manualBrightnessPercent, chimeInterval]
+      properties:
+        ssid:
+          type: string
+          minLength: 1
+          maxLength: 32
+        passwordConfigured:
+          type: boolean
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+          examples: [greenpico]
+        domainName:
+          type: string
+          maxLength: 253
+          description: Optional local DNS domain without a leading or trailing dot; the complete hostname and domain must not exceed 253 characters.
+          examples: [internal]
+        ntpServer:
+          type: string
+          minLength: 1
+          maxLength: 63
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        displaySchedule:
+          $ref: '#/components/schemas/DisplaySchedule'
+        automaticBrightness:
+          type: boolean
+        manualBrightnessPercent:
+          type: integer
+          minimum: 10
+          maximum: 100
+          multipleOf: 10
+        chimeInterval:
+          $ref: '#/components/schemas/ChimeInterval'
+    ConfigWrite:
+      type: object
+      required: [ssid, ntpServer, timezone, displayScheduleEnabled, displayOff, displayOn]
+      properties:
+        ssid:
+          type: string
+          minLength: 1
+          maxLength: 32
+        password:
+          type: string
+          maxLength: 63
+          writeOnly: true
+        clearPassword:
+          type: boolean
+          default: false
+        hostname:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+          description: Optional update; omitted values preserve the current DHCP hostname.
+        domainName:
+          type: string
+          maxLength: 253
+          description: Optional local DNS domain update. An empty string selects hostname-only URLs.
+        ntpServer:
+          type: string
+          minLength: 1
+          maxLength: 63
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        displayScheduleEnabled:
+          type: boolean
+        displayOff:
+          $ref: '#/components/schemas/LocalTime'
+        displayOn:
+          $ref: '#/components/schemas/LocalTime'
+        automaticBrightness:
+          type: boolean
+          description: Use the ambient-light sensor instead of the manual percentage.
+        manualBrightnessPercent:
+          type: integer
+          minimum: 10
+          maximum: 100
+          multipleOf: 10
+        chimeInterval:
+          $ref: '#/components/schemas/ChimeInterval'
+    ChimeInterval:
+      type: string
+      enum: [never, 15min, 30min, 1hr]
+      description: Periodic buzzer interval aligned to wall-clock quarter hours, half hours, or hours.
+    Status:
+      type: object
+      additionalProperties: false
+      required: [device, domainName, fqdn, firmwareVersion, networkMode, macAddress, configurationComplete, metrics]
+      properties:
+        device:
+          type: string
+          description: Configured DHCP hostname.
+        domainName:
+          type: string
+          description: Configured local DNS domain, or an empty string.
+        fqdn:
+          type: string
+          description: Hostname joined to the configured domain name.
+        firmwareVersion:
+          type: string
+        networkMode:
+          type: string
+          enum: [station, provisioning]
+        macAddress:
+          type: string
+        configurationComplete:
+          type: boolean
+        metrics:
+          $ref: '#/components/schemas/DeviceMetrics'
+    DeviceMetrics:
+      type: object
+      additionalProperties: false
+      required: [uptimeSeconds, cpuFrequencyHz, ramTotalBytes, ramStaticBytes,
+        ramAllocatedBytes, heapUsedBytes, heapCapacityBytes, flashTotalBytes,
+        firmwareBytes, resetReason]
+      properties:
+        uptimeSeconds:
+          type: integer
+          minimum: 0
+        cpuFrequencyHz:
+          type: integer
+          minimum: 1
+        ramTotalBytes:
+          type: integer
+          minimum: 1
+        ramStaticBytes:
+          type: integer
+          minimum: 0
+        ramAllocatedBytes:
+          type: integer
+          minimum: 0
+          description: Static data plus live heap allocations; current stack depth is not included.
+        heapUsedBytes:
+          type: integer
+          minimum: 0
+        heapCapacityBytes:
+          type: integer
+          minimum: 0
+        flashTotalBytes:
+          type: integer
+          minimum: 1
+        firmwareBytes:
+          type: integer
+          minimum: 0
+        resetReason:
+          type: string
+          enum: [watchdog, power-on-or-external]
+    ClockTime:
+      type: object
+      additionalProperties: false
+      required: [valid, date, time, weekday, timezone, ntpSynchronized]
+      properties:
+        valid:
+          type: boolean
+        date:
+          type: [string, 'null']
+          format: date
+        time:
+          type: [string, 'null']
+          pattern: '^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$'
+        weekday:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 6
+          description: Sunday is zero, matching the Pico SDK RTC representation.
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        ntpSynchronized:
+          type: boolean
+    DisplayStatus:
+      type: object
+      additionalProperties: false
+      required: [page, statusView, powerOverride, automaticBrightness,
+        brightnessBias, temperatureUnit, temperatureCelsius, networkConnected,
+        wifiSsid, signalPercent, ntpPeer, ntpSynchronized, lastNtpSync,
+        rtcSkewSeconds,
+        ambientLightPercent, brightnessPercent, powerSaving,
+        powerSaveTestActive, powerSaveTestDurationSeconds,
+        powerSaveTestSecondsRemaining, frame,
+        factoryResetCountdownSeconds]
+      properties:
+        page:
+          type: string
+          enum: [time, date, temperature, status]
+        statusView:
+          type: string
+          enum: [wifi, ntp, brightness]
+        powerOverride:
+          type: string
+          enum: [automatic, on-temporarily, off-until-schedule]
+        automaticBrightness:
+          type: boolean
+        brightnessBias:
+          type: integer
+          minimum: -4
+          maximum: 4
+        temperatureUnit:
+          type: string
+          enum: [celsius, fahrenheit]
+        temperatureCelsius:
+          type: number
+          format: float
+        networkConnected:
+          type: boolean
+        wifiSsid:
+          type: string
+          maxLength: 32
+        signalPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        ntpPeer:
+          type: string
+          minLength: 1
+          maxLength: 63
+        ntpSynchronized:
+          type: boolean
+          description: True after the latest NTP response was applied to the RTC successfully.
+        lastNtpSync:
+          type: [string, 'null']
+          pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+          description: Local RTC date and time written by the last successful NTP synchronization, without a UTC offset.
+        rtcSkewSeconds:
+          type: [integer, 'null']
+          format: int32
+          description: RTC minus NTP in seconds immediately before the last successful correction; positive means the RTC was ahead.
+        ambientLightPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Current normalized ambient-light sensor reading.
+        brightnessPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Actual display PWM brightness after automatic/manual control and button bias.
+        powerSaving:
+          type: boolean
+          description: True while the display is off and CYW43 aggressive power management is selected.
+        powerSaveTestActive:
+          type: boolean
+        powerSaveTestDurationSeconds:
+          type: integer
+          enum: [0, 5, 10, 15]
+          description: Requested test duration; zero means wait indefinitely for a physical button.
+        powerSaveTestSecondsRemaining:
+          type: integer
+          minimum: 0
+          maximum: 15
+          description: Rounded-up timed-test duration remaining; zero for an indefinite or inactive test.
+        frame:
+          type: array
+          description: The exact 24-by-8 LED framebuffer, one six-digit hexadecimal row at a time.
+          minItems: 8
+          maxItems: 8
+          items:
+            type: string
+            pattern: '^[0-9A-F]{6}$'
+        factoryResetCountdownSeconds:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: Seconds remaining while all three buttons are held; zero otherwise.
+    DisplayActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum:
+            - next-page
+            - show-time
+            - show-date
+            - show-temperature
+            - show-status
+            - next-status
+            - previous-status
+            - brightness-up
+            - brightness-down
+            - automatic-brightness
+            - select-celsius
+            - select-fahrenheit
+            - wake
+            - sleep-until-schedule
+            - maximum-brightness
+    PowerSaveTestRequest:
+      type: object
+      additionalProperties: false
+      required: [durationSeconds]
+      properties:
+        durationSeconds:
+          type: integer
+          enum: [0, 5, 10, 15]
+    WifiScan:
+      type: object
+      additionalProperties: false
+      required: [state, networks]
+      properties:
+        state:
+          type: string
+          enum: [idle, scanning, complete, failed]
+        networks:
+          type: array
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/WifiNetwork'
+    WifiNetwork:
+      type: object
+      additionalProperties: false
+      required: [ssid, rssi, signalPercent, channel, security]
+      properties:
+        ssid:
+          type: string
+          minLength: 1
+          maxLength: 32
+        rssi:
+          type: integer
+        signalPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        channel:
+          type: integer
+          minimum: 1
+          maximum: 14
+        security:
+          type: string
+          enum: [open, secured]
+    FactoryResetRequest:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          const: erase-all-settings
+    Accepted:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: accepted
+    AcceptedRestart:
+      allOf:
+        - $ref: '#/components/schemas/Accepted'
+        - type: object
+          required: [restartRequired]
+          properties:
+            restartRequired:
+              type: boolean
+              const: true
+    Problem:
+      type: object
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string

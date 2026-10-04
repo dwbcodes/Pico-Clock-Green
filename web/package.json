@@ -1,0 +1,23 @@
+{
+  "name": "greenpico-web",
+  "version": "0.14.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && node ../scripts/embed-web-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "25.0.10",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}
