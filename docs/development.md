@@ -213,7 +213,7 @@ checksum as a 30-day workflow artifact.
 
 Tags matching `v*` also create a GitHub Release and attach those files. The tag
 must be exactly `v` followed by the value in `include/version.hpp`; for example,
-firmware version `0.14.0` is released with tag `v0.14.0`. Rerunning an existing
+firmware version `1.0.0` is released with tag `v1.0.0`. Rerunning an existing
 tag replaces only its two generated release assets.
 
 Clean generated build output with:

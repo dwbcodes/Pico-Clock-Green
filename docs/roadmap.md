@@ -2,7 +2,7 @@
 
 The core clock, NTP/RTC synchronization, display pages, buttons, brightness,
 chime, Wi-Fi provisioning, browser interface, and versioned API are implemented.
-This list contains only work that remains useful after the 0.14.0 baseline.
+This list contains only work that remains useful after the 1.0.0 baseline.
 
 ## Hardware validation
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: greenpico API
-  version: 0.14.0
+  version: 1.0.0
   description: |
     Local-network API for the Pico Clock Green firmware. Configuration changes
     are persisted atomically and applied after an automatic restart. The API is
