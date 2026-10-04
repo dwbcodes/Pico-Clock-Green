@@ -19,7 +19,7 @@ concurrency:
 jobs:
   build:
     name: Build greenpico firmware
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.package.outputs.version }}
       firmware_name: ${{ steps.package.outputs.firmware_name }}
@@ -97,7 +97,7 @@ jobs:
     name: Publish GitHub Release
     if: github.ref_type == 'tag'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
 
