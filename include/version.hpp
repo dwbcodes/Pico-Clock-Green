@@ -2,6 +2,6 @@
 
 namespace pico_clock {
 
-inline constexpr char kFirmwareVersion[] = "0.14.0";
+inline constexpr char kFirmwareVersion[] = "1.0.0";
 
 }  // namespace pico_clock

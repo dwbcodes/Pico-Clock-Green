@@ -92,7 +92,7 @@ copyright and SPDX notices with adapted source.
 ## Project orientation
 
 This repository contains firmware for the Waveshare Pico-Clock-Green using a
-Raspberry Pi Pico W, Pico SDK, and C++17. Firmware version 0.14.0 is the current
+Raspberry Pi Pico W, Pico SDK, and C++17. Firmware version 1.0.0 is the current
 baseline. Read these sources before changing behavior:
 
 - `README.md` is the human product, setup, build, and test guide.
@@ -192,7 +192,7 @@ environments so PlatformIO state is writable and reproducible.
   require a reachable clock. Never substitute them for the local deterministic
   suites.
 
-At the 0.14.0 baseline there are 19 native test programs containing 87 cases.
+At the 1.0.0 baseline there are 19 native test programs containing 87 cases.
 Do not hard-code that count in scripts; it is supplied here only as an audit
 reference.
 

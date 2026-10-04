@@ -142,8 +142,8 @@ UF2 for pull requests, `main`, and manual runs. Each run retains
 sources together and push the matching tag:
 
 ```bash
-git tag v0.14.0
-git push origin v0.14.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 The workflow rejects a tag that does not match `kFirmwareVersion`, preventing a
